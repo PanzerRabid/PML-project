@@ -1,0 +1,57 @@
+---
+title: "Practical Machine Learning"
+author: "Sheng-Yuan Lin"
+date: "Apr 10 2016"
+output: html_document
+---
+
+#Load and Process Data
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "trainset.csv")
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "testset.csv")
+train <- read.csv("trainset.csv")
+test <- read.csv("testset.csv")
+
+library(caret)
+library(randomForest)
+
+unique(sapply(train, function(x) sum(is.na(x)))) ##the number of missing data in each variable is either 0 or 19216
+missing.var.index <- sapply(train, function(x) sum(is.na(x)))==0
+train <- train[,missing.var.index]
+low.variance.index <- nearZeroVar(train)
+train <- train[,-low.variance.index]
+train <- train[,-1:-5]
+```
+1. Download data and read it into train and test.
+2. Library the packages needed.
+3. Remove useless variables. In this case, some variables contains too many NAs and this is our first target. With unique function we find that each variable contains either 0 or 19216 NAs, so remove those with 19216 NAs.
+4. Use nearZeroVar to remove  variables with too few variability.
+5. Remove variables that record time and user name (column 1 to 5).
+
+#Create Cross-validation Set
+```{r}
+set.seed(86)
+cross.valid.set <- createDataPartition(train$classe,p=0.2,list = F)
+sub.train <- train[-cross.valid.set,]
+sub.valid <- train[cross.valid.set,]
+```
+1. Separate 20% entries from train to sub.valid for cross-validation purpose.
+2. Use the rest 80% entries to build model.
+
+#Train
+```{r,cache=T}
+gbm.fit2 <- train(classe ~ ., sub.train, method="gbm",verbose=F)
+rf.fit <- randomForest(classe~.,sub.train,importance=T,ntrees=10)
+
+confusionMatrix(sub.valid$classe,predict(gbm.fit2,sub.valid))
+confusionMatrix(sub.valid$classe,predict(rf.fit,sub.valid))
+```
+1. We use two method, gbm and random forest, to build our model.
+2. The accuracy of random forest (99.85%) is better than gbm's (98.52%), and 1-accuracy rate (0.15% and 1.48% respectively) is the "out-of sample error" for both models.
+3. Random forest model will be used solely to predict the test set due to the higher accuracy rate.
+
+#Predict
+```{r}
+predict(rf.fit,test)
+```
+The predict result is listed as above.
